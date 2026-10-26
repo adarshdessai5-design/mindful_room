@@ -1,6 +1,9 @@
 backend:
-  name: git-gateway
+  name: github
+  repo: adarshdessai5-design/mindful_room
   branch: main
+  base_url: https://decap-proxy.deno.dev
+  auth_endpoint: auth
 
 media_folder: "images/uploads"
 public_folder: "/images/uploads"
