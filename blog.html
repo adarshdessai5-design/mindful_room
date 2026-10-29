@@ -47,10 +47,14 @@
     .modal-content { background: var(--bg); width: 100%; max-width: 800px; border-radius: 12px; padding: 40px; position: relative; box-shadow: 0 20px 40px rgba(0,0,0,0.2); transform: translateY(20px); transition: transform 0.3s; }
     .modal-overlay.active .modal-content { transform: translateY(0); }
     .close-modal { position: absolute; top: 20px; right: 20px; background: transparent; border: none; font-size: 1.5rem; cursor: pointer; color: var(--ink-soft); }
-    .modal-content h1 { font-family: "Fraunces", serif; font-size: 2.5rem; margin-top: 0; }
+    .modal-content h1 { font-family: "Fraunces", serif; font-size: 2.5rem; margin-top: 0; margin-bottom: 15px; }
     .modal-video { margin: 20px 0; width: 100%; border-radius: 8px; overflow: hidden; }
     .modal-video iframe { width: 100%; aspect-ratio: 16/9; border: none; }
     .modal-text { font-size: 1.05rem; color: var(--ink-soft); line-height: 1.8; }
+    
+    /* Share Button */
+    .share-btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--bg-alt); border: 1px solid var(--border-subtle); border-radius: 20px; color: var(--ink); font-size: 0.9rem; font-weight: 500; cursor: pointer; margin-bottom: 20px; transition: all 0.2s; }
+    .share-btn:hover { background: var(--sage); color: white; border-color: var(--sage); }
     
     .instagram-container { display: flex; justify-content: center; width: 100%; margin-bottom: 20px; }
     @media (max-width: 600px) { .header-section h1 { font-size: 2.2rem; } .modal-content { padding: 24px; } }
@@ -116,7 +120,9 @@
             dateStr = getVal("date");
           }
 
-          // Auto-detect YouTube Thumbnail if no custom image
+          // Slug for sharing URL
+          const slug = file.name.replace(".md", "");
+
           let thumbSrc = coverImage;
           let isYouTube = false; let ytId = "";
           if (videoUrl && (videoUrl.includes("youtube.com") || videoUrl.includes("youtu.be"))) {
@@ -127,12 +133,10 @@
             if (!thumbSrc && ytId) thumbSrc = "https://img.youtube.com/vi/" + ytId + "/maxresdefault.jpg";
           }
 
-          // Fallback image
           if (!thumbSrc) thumbSrc = "https://images.unsplash.com/photo-1520694478166-daaaaec95b69?q=80&w=800&auto=format&fit=crop";
 
-          allPosts.push({ title, videoUrl, contentBody, dateStr, thumbSrc, isYouTube, ytId });
+          allPosts.push({ title, videoUrl, contentBody, dateStr, thumbSrc, isYouTube, ytId, slug });
 
-          // Create Card
           const excerpt = marked.parse(contentBody).replace(/<[^>]+>/g, "").substring(0, 100) + "...";
           const formattedDate = dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }) : "";
 
@@ -152,13 +156,17 @@
           `;
           grid.appendChild(card);
         }
+        
+        // Check if URL has a specific post hash to open automatically
+        checkHashAndOpen();
+        
       } catch (error) {
         console.error(error);
         grid.innerHTML = "<p style='text-align:center; width:100%;'>Error loading posts.</p>";
       }
     }
 
-    function openPost(index) {
+    function openPost(index, updateHash = true) {
       const post = allPosts[index];
       const modalBody = document.getElementById("modal-body");
       const modal = document.getElementById("post-modal");
@@ -173,9 +181,18 @@
       }
 
       const formattedDate = post.dateStr ? new Date(post.dateStr).toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" }) : "";
+      
+      // Create shareable URL
+      const shareUrl = window.location.origin + window.location.pathname + "#" + post.slug;
 
       modalBody.innerHTML = `
-        ${formattedDate ? `<div class="card-date" style="margin-bottom:10px;">${formattedDate}</div>` : ``}
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div class="card-date">${formattedDate}</div>
+          <button class="share-btn" onclick="copyLink('${shareUrl}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            Copy Link
+          </button>
+        </div>
         <h1>${post.title}</h1>
         ${videoHtml}
         <div class="modal-text">${marked.parse(post.contentBody)}</div>
@@ -183,6 +200,10 @@
 
       modal.classList.add("active");
       document.body.style.overflow = "hidden";
+
+      if (updateHash) {
+        window.history.pushState(null, null, "#" + post.slug);
+      }
 
       if (post.videoUrl && post.videoUrl.includes("instagram.com") && window.instgrm) {
         window.instgrm.Embeds.process();
@@ -192,9 +213,29 @@
     function closeModal() {
       document.getElementById("post-modal").classList.remove("active");
       document.body.style.overflow = "auto";
+      // Remove hash from URL without reloading
+      window.history.pushState(null, null, window.location.pathname);
     }
 
-    // Close on outside click
+    // Copy link function
+    function copyLink(url) {
+      navigator.clipboard.writeText(url).then(() => {
+        const btn = document.querySelector('.share-btn');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '✅ Copied!';
+        setTimeout(() => { btn.innerHTML = originalText; }, 2000);
+      });
+    }
+
+    // Check if user opened a specific shared link
+    function checkHashAndOpen() {
+      const hash = window.location.hash.substring(1);
+      if (hash) {
+        const index = allPosts.findIndex(p => p.slug === hash);
+        if (index !== -1) openPost(index, false);
+      }
+    }
+
     document.getElementById("post-modal").addEventListener("click", function(e) {
       if (e.target === this) closeModal();
     });
